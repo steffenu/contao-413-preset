@@ -1,0 +1,22 @@
+stages:
+  - deploy
+
+deploy_production:
+  stage: deploy
+  image: ubuntu:latest
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - eval $(ssh-agent -s)
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - echo "$STAGING_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -t rsa lupcom.info >> ~/.ssh/known_hosts
+    - ssh-keyscan -t rsa gitlab.lupcom.de >> ~/.ssh/known_hosts
+  script:
+    - ssh YOUR_SSH_USERNAME@lupcom.info "cd html/contao && git pull"
+    - ssh YOUR_SSH_USERNAME@lupcom.info "cd html/contao && php ./composer.phar config --auth http-basic.packeton.lup.me wolframfritsche _WGmS1P7KOI8QSmSZKGA"
+    - ssh YOUR_SSH_USERNAME@lupcom.info "cd html/contao && php ./composer.phar install"
+    - ssh YOUR_SSH_USERNAME@lupcom.info "php ./html/contao/vendor/bin/contao-console assets:install web --symlink --relative && php ./html/contao/vendor/bin/contao-console contao:migrate --schema-only --no-interaction"
+  only:
+    - master
